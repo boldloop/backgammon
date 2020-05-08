@@ -8,44 +8,23 @@
 # Board.py
 
 
+import itertools
+
+
 switch_color = {'white': 'black', 'black': 'white'}
 
 
 def _poss_move_groups(side_dict, n_rolls):
-    side_dict = side_dict.copy()
-    try:
-        side_dict.pop(0)
-    except KeyError:
-        pass
-
-    if 25 in side_dict:  # if there are pieces on the bar
-        bar = side_dict.pop(25)
-        if bar > n_rolls:
-            return {(25,) * n_rolls}
-        else:
-            other_groups = _poss_move_groups(side_dict, n_rolls - bar)
-            return set([(25,) * bar + other for other in other_groups])
-    else:
-        if n_rolls <= 0:
-            return [()]  # list of one empty tuple
-        elif n_rolls >= sum(side_dict.values()):
-            out_tup = tuple()
-            for point in side_dict:
-                out_tup += (point,) * side_dict[point]
-            return out_tup
-        else:
-            points = side_dict.keys()
-            move_groups = list()
-            for point in points:
-                tmp = side_dict.copy()
-                tmp[point] -= 1
-                if tmp[point] == 0:
-                    tmp.pop(point)
-                other_groups = _poss_move_groups(tmp, n_rolls - 1)
-                move_groups.extend([(point,) + other
-                                    for point in points
-                                    for other in other_groups])
-            return set(move_groups)
+    locs = []
+    for loc in side_dict:
+        if loc != 0:
+            locs.extend([loc] * side_dict[loc])
+    if len(locs) <= n_rolls:
+        return {tuple(locs)}
+    bar = side_dict.get(25, 0)
+    bar_req = bar if bar < n_rolls else n_rolls
+    return set([group for group in itertools.combinations(locs, n_rolls)
+                if group.count(25) == bar_req])
 
 
 class Board:
