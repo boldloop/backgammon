@@ -14,19 +14,6 @@ import itertools
 switch_color = {'white': 'black', 'black': 'white'}
 
 
-def _poss_move_groups(side_dict, n_rolls):
-    locs = []
-    for loc in side_dict:
-        if loc != 0:
-            locs.extend([loc] * side_dict[loc])
-    if len(locs) <= n_rolls:
-        return {tuple(locs)}
-    bar = side_dict.get(25, 0)
-    bar_req = bar if bar < n_rolls else n_rolls
-    return set([group for group in itertools.combinations(locs, n_rolls)
-                if group.count(25) == bar_req])
-
-
 def test_group(group, side):
     enough = all([side[point] >= group.count(point) for point in set(group)])
     bar = side.get(25, 0) == group.count(25) or set(group) == {25}
@@ -65,7 +52,6 @@ def execute_move(point_paths, side, opp):
                 future_opp[25] = future_opp.get(25, 0) + 1
             except KeyError:
                 pass
-    print(point_paths)
     return future_side, future_opp
 
 
@@ -81,6 +67,7 @@ def dedup_moves(moves):
 
 
 def str_from_board(board):
+    # temp str function until I manage to do a fancier one
     out_strs = []
     for i in range(26):
         white = "w" * board['white'].get(i, 0)
@@ -97,6 +84,24 @@ def str_from_board(board):
             out_strs.append('------')
 
     return '\n'.join(out_strs)
+
+
+def end(board):
+    win = None
+    for color in ['white', 'black']:
+        if set(board[color].keys()) == {0}:
+            win = color
+    if win is None:
+        return win
+    else:
+        opp = board[switch_color[win]]
+        gammon = int(opp.get(0, 0) == 0)
+        backgammon = int(max(opp) > 25-7) * gammon
+        seq = [1, gammon, backgammon]
+        if win == 'white':
+            return seq + [0]*3
+        else:
+            return [0]*3 + seq
 
 
 class Board:
@@ -132,15 +137,12 @@ class Board:
         # because a piece on the 23-point could move 1, 2, or 3 4s.
         point_from_n_val = {1: list(), 2: list(), 3: list(), 4: list()}
         for point in side:
-            print(point)
             if point != 0:
                 for i in range(1, 5):
                     if opp_side.get(25 - (point - i * num), 0) > 1:
-                        print(f'{point} after {i} {num}s hits other')
                         break
                     else:
                         point_from_n_val[i].append(point)
-            print(point_from_n_val)
 
         moves = list()
         # a move_type is how the move is split between pieces.
@@ -193,8 +195,11 @@ class Board:
 
         return dedup_moves(moves)
 
+    def end(self, board=None):
+        board = board if board is not None else self.getBoard()
+        return end(board)
+
     def __str__(self):
-        # temp str function until I manage to do a fancier one
         return str_from_board(self.getBoard())
 
 

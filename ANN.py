@@ -35,7 +35,8 @@ class ANN:
         self.weights = weights
 
     def get_weights(self):
-        return np.concatenate(self.weights, axis=None)
+        weight_vector = np.concatenate(self.weights, axis=None)
+        return weight_vector.reshape(len(weight_vector), 1)
 
     def set_weights(self, weight_vector):
         for i in range(len(self.weights)):
@@ -109,8 +110,7 @@ class ANN:
 
         # now doing full pa_pw
         pa_pw = []
-        # the indexing here is because, moving backwards, you want
-        # the chain rule to work out.
+        # the indexing here is because the chain rule needs to work out.
         # so the pa_pw needs to match with the previous paL_pa.
         # the first item in paL_pa is wrt to the inputs, which is never used.
         # the last item in single_pa_pw is already done,
@@ -126,7 +126,7 @@ class ANN:
         pa_pw.append(single_pa_pw[-1])
         pa_pw = [a.reshape(-1, num_aL) for a in pa_pw]
         pa_pw = np.concatenate(pa_pw, axis=0)
-        return pa_pw
+        return activations[-1], pa_pw
 
     def eval(self, inputs):
         a_layer = inputs
