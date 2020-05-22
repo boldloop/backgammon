@@ -32,10 +32,13 @@ def execute_move(point_paths, side, opp):
 
         final = point - sum(path)
         if final < 0:
+            # if len(path) == 1:
             if max(future_side) <= point <= 6:
                 future_side[0] = future_side.get(0, 0) + 1
             else:
                 return
+            # else:
+            #     for num in path:
         elif final == 0:
             if max(future_side) <= 6:
                 future_side[0] = future_side.get(0, 0) + 1
@@ -52,6 +55,9 @@ def execute_move(point_paths, side, opp):
                 future_opp[25] = future_opp.get(25, 0) + 1
             except KeyError:
                 pass
+    # print(point_paths)
+    # print(side, '-->', future_side)
+    # print(opp, '-->', future_opp)
     return future_side, future_opp
 
 
@@ -66,24 +72,89 @@ def dedup_moves(moves):
     return [move for i, move in enumerate(moves) if move not in moves[i+1:]]
 
 
-def str_from_board(board):
-    # temp str function until I manage to do a fancier one
-    out_strs = []
-    for i in range(26):
-        white = "w" * board['white'].get(i, 0)
-        black = "b" * board['black'].get(25 - i, 0)
+def str_ix_from_piece(point, num, color):
+    if point == 0:
+        num -= 1
+        base_y = {'white': 3, 'black': 12}[color]
+        y = base_y + num // 5
+        x = 56 + (num % 5)
+        return x, y
 
-        if i == 0:
-            out_strs.append(f'white borne: {white} | black bar: {black}')
-        elif i == 25:
-            out_strs.append(f'black borne: {black} | white bar: {white}')
+    if point == 25:
+        x = 26
+        if color == 'white':
+            y = 15 - num
         else:
-            out_strs.append(white + black)
+            y = 2 + num
+        return x, y
 
-        if i % 6 == 0:
-            out_strs.append('------')
+    point = 25 - point if color == 'black' else point
+    if 1 <= point <= 12:
+        y = 2 + num
+    elif point <= 24:
+        y = 15 - num
+        point = 25 - point
 
-    return '\n'.join(out_strs)
+    if point <= 6:
+        x = 50 - 4*(point - 1)
+    else:
+        x = 22 - 4*((point - 1) % 6)
+
+    return x, y
+
+
+def str_from_board(board):
+    starting = ''' 12  11  10   9   8   7       6   5   4   3   2   1
++---+---+---+---+---+---+---+---+---+---+---+---+---+
+|                       |   |                       | W's home
+|                       |   |                       | |       |
+|                       |   |                       | |       |
+|                       |   |                       | |       |
+|                       |   |                       |
+|                       |   |                       |
+|                       |   |                       |
+|                       |   |                       |
+|                       |   |                       |
+|                       |   |                       |
+|                       |   |                       | |       |
+|                       |   |                       | |       |
+|                       |   |                       | |       |
+|                       |   |                       | B's home
++---+---+---+---+---+---+---+---+---+---+---+---+---+
+ 13  14  15  16  17  18      19  20  21  22  23  24'''
+
+    starting = starting.split('\n')
+    starting = [list(line) for line in starting]
+
+    for color in ['white', 'black']:
+        char = color[0].upper()
+        for point in board[color]:
+            for num in range(board[color][point]):
+                x, y = str_ix_from_piece(point, num, color)
+                starting[y][x] = char
+
+    starting = [''.join(line) for line in starting]
+    return '\n'.join(starting)
+
+
+# def str_from_board(board):
+#     # temp str function until I manage to do a fancier one
+#     out_strs = []
+#     for i in range(26):
+#         white = "w" * board['white'].get(i, 0)
+#         black = "b" * board['black'].get(25 - i, 0)
+#
+#         if i == 0:
+#             out_strs.append(f'white borne: {white} | black bar: {black}')
+#         elif i == 25:
+#             out_strs.append(f'black borne: {black} | white bar: {white}')
+#         else:
+#             out_strs.append(white + black)
+#
+#         if i % 6 == 0:
+#             out_strs.append('------')
+#
+#     return '\n'.join(out_strs)
 
 
 def end(board):
@@ -102,6 +173,47 @@ def end(board):
             return seq + [0]*3
         else:
             return [0]*3 + seq
+
+
+def pip(side):
+    return sum([point*num for point, num in side.items()])
+
+
+def check_pt_path_moves(pt_p_moves, color, board):
+    side, opp = board[color], board[switch_color[color]]
+
+    pip_l = [(p_paths, pip(move[color])) for p_paths, move in pt_p_moves]
+    try:
+        min_pip = min([pip_ct for p_paths, pip_ct in pip_l])
+    except ValueError:
+        assert len(pt_p_moves) == 0, 'non-empty list raising ValueError'
+        return []
+
+    ignore = list()
+    for point_paths in [p_paths for p_paths, pip_ct in pip_l
+                        if pip_ct != min_pip]:
+        for point, path in point_paths:
+            if len(path) >= 2:
+                other_pt_paths = [pt_path for pt_path in point_paths
+                                  if pt_path != (point, path)]
+                futures = execute_move(other_pt_paths, side, opp)
+                if futures is None:
+                    continue
+                else:
+                    future_side, future_opp = futures
+                mid = point
+                valid = True
+                for num in path:
+                    mid -= num
+                    if mid < max(future_side):
+                        valid = False
+                        break
+                if not valid:
+                    ignore.append(point_paths)
+                    break
+
+    moves = [move for pt_paths, move in pt_p_moves if pt_paths not in ignore]
+    return moves
 
 
 class Board:
@@ -159,8 +271,11 @@ class Board:
                                    for point, n_val in zip(group, move_type)]
                     futures = execute_move(point_paths, side, opp_side)
                     if futures is not None:
-                        moves.append({color: futures[0],
-                                      switch_color[color]: futures[1]})
+                        move = {color: futures[0],
+                                switch_color[color]: futures[1]}
+                        moves.append((point_paths, move))
+
+        moves = check_pt_path_moves(moves, color, self.getBoard())
 
         return dedup_moves(moves)
 
@@ -180,8 +295,8 @@ class Board:
                 point_paths = list(zip(group, [(die,) for die in roll]))
                 futures = execute_move(point_paths, side, opp_side)
                 if futures is not None:
-                    moves.append({color: futures[0],
-                                  switch_color[color]: futures[1]})
+                    move = {color: futures[0], switch_color[color]: futures[1]}
+                    moves.append((point_paths, move))
 
         for point in points_from_num[sum(roll)]:
             if test_group((point,), side):
@@ -190,8 +305,11 @@ class Board:
                         point_paths = [(point, (die, sum(roll) - die))]
                         futures = execute_move(point_paths, side, opp_side)
                         if futures is not None:
-                            moves.append({color: futures[0],
-                                          switch_color[color]: futures[1]})
+                            move = {color: futures[0],
+                                    switch_color[color]: futures[1]}
+                            moves.append((point_paths, move))
+
+        moves = check_pt_path_moves(moves, color, self.getBoard())
 
         return dedup_moves(moves)
 
