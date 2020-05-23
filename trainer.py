@@ -115,7 +115,7 @@ def run_game(ann, lambd, alpha):
         z = lambd * z + new_z
         old_Y = new_Y
 
-    return steps
+    return steps, end
 
 
 def train(n, weights=None):
@@ -126,13 +126,9 @@ def train(n, weights=None):
     start = datetime.datetime.now()
     print(start)
     for i in range(n):
-        steps = run_game(ann, lambd=.7, alpha=.1)
-        if i % 25 == 0:
-            time_since = (datetime.datetime.now() - start).seconds
-            if time_since != 0:
-                print(i, time_since, i / time_since)
-        with open('logs/games.txt', 'a') as games:
-            games.write(f"{steps}\n")
+        steps, end = run_game(ann, lambd=.7, alpha=.1)
+        with open('logs/games.csv', 'a') as games:
+            games.write(f"{i}|{steps}|{end}|{datetime.datetime.now()}")
         with open('logs/weights', 'wb') as weight_file:
             pickle.dump(ann.weights, weight_file)
 

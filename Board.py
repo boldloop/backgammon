@@ -8,73 +8,11 @@
 # Board.py
 
 
-import itertools
-
-
 switch_color = {'white': 'black', 'black': 'white'}
-
-
-def test_group(group, side):
-    enough = all([side[point] >= group.count(point) for point in set(group)])
-    bar = side.get(25, 0) == group.count(25) or set(group) == {25}
-    return enough and bar
-
-
-def execute_move(point_paths, side, opp):
-    # point_paths is [(point, nums to move piece)]
-    # e.g. a point_path would be (23, (2, 3))
-    # to move a piece on the 23-point 2 and then 3 (hitting on the 21- and 18-)
-    future_side, future_opp = side.copy(), opp.copy()
-    for point, path in point_paths:
-        future_side[point] -= 1
-        if future_side[point] == 0:
-            future_side.pop(point)
-
-        final = point - sum(path)
-        if final < 0:
-            # if len(path) == 1:
-            if max(future_side) <= point <= 6:
-                future_side[0] = future_side.get(0, 0) + 1
-            else:
-                return
-            # else:
-            #     for num in path:
-        elif final == 0:
-            if max(future_side) <= 6:
-                future_side[0] = future_side.get(0, 0) + 1
-            else:
-                return
-        else:
-            future_side[final] = future_side.get(final, 0) + 1
-
-        pos = point
-        for num in path:
-            pos -= num
-            try:
-                future_opp.pop(25 - pos)
-                future_opp[25] = future_opp.get(25, 0) + 1
-            except KeyError:
-                pass
-    # print(point_paths)
-    # print(side, '-->', future_side)
-    # print(opp, '-->', future_opp)
-    return future_side, future_opp
-
-
-def dedup_moves(moves):
-    # moves is a list of dicts of dicts of ints. nice.
-    # one move is {'white': {1: 3}, 'black': {4: 2}}
-    # the list comp below only returns an item if it isn't in the
-    # later values of the list.
-    # so, it only returns one copy of each unique move.
-    # preferred over set-based solutions because a dict of dicts is a pain
-    # to make hashable.
-    return [move for i, move in enumerate(moves) if move not in moves[i+1:]]
 
 
 def str_ix_from_piece(point, num, color):
     if point == 0:
-        num -= 1
         base_y = {'white': 3, 'black': 12}[color]
         y = base_y + num // 5
         x = 56 + (num % 5)
@@ -104,7 +42,7 @@ def str_ix_from_piece(point, num, color):
 
 
 def str_from_board(board):
-    starting = ''' 12  11  10   9   8   7       6   5   4   3   2   1
+    starting_str = ''' 12  11  10   9   8   7       6   5   4   3   2   1
 +---+---+---+---+---+---+---+---+---+---+---+---+---+
 |                       |   |                       | W's home
 |                       |   |                       | |       |
@@ -123,38 +61,112 @@ def str_from_board(board):
 +---+---+---+---+---+---+---+---+---+---+---+---+---+
  13  14  15  16  17  18      19  20  21  22  23  24'''
 
-    starting = starting.split('\n')
-    starting = [list(line) for line in starting]
-
+    out = starting_str.split('\n')
+    out = [list(line) for line in out]
     for color in ['white', 'black']:
         char = color[0].upper()
         for point in board[color]:
             for num in range(board[color][point]):
                 x, y = str_ix_from_piece(point, num, color)
-                starting[y][x] = char
+                out[y][x] = char
 
-    starting = [''.join(line) for line in starting]
-    return '\n'.join(starting)
+    out = [''.join(line) for line in out]
+    return '\n'.join(out)
 
 
-# def str_from_board(board):
-#     # temp str function until I manage to do a fancier one
-#     out_strs = []
-#     for i in range(26):
-#         white = "w" * board['white'].get(i, 0)
-#         black = "b" * board['black'].get(25 - i, 0)
-#
-#         if i == 0:
-#             out_strs.append(f'white borne: {white} | black bar: {black}')
-#         elif i == 25:
-#             out_strs.append(f'black borne: {black} | white bar: {white}')
-#         else:
-#             out_strs.append(white + black)
-#
-#         if i % 6 == 0:
-#             out_strs.append('------')
-#
-#     return '\n'.join(out_strs)
+# need to call with every order
+# generates superset of valid plays, playing the numbers in the order listed
+# doesn't check for maximum part of roll
+# to return: list of list of moves (in the berliner sense)
+# e.g., [[(25, 5), (20, 3)], [(25, 3), (13, 5)]]
+#         25/17               25/22, 13/8
+def play_gen(board, nums, color):
+    if len(nums) == 0:
+        return [[]]
+
+    side, opp = board[color].copy(), board[switch_color[color]].copy()
+    num = nums[0]
+    nums = nums[1:]
+
+    # if on bar
+    if side.get(25, 0) > 0:
+        if opp.get(num, 0) > 1:
+            return [[]]
+        elif opp.get(num, 0) == 1:
+            opp[25] = opp.get(25, 0) + opp.pop(num)
+
+        side[25] -= 1
+        if side[25] == 0:
+            side.pop(25)
+        side[25 - num] = side.get(25 - num, 0) + 1
+        board = {color: side, switch_color[color]: opp}
+        return [[(25, num)] + moves for moves
+                in play_gen(board, nums, color)]
+
+    plays = [[]]
+    can_bear_off = max(side) <= 6
+
+    # all moves where not bearing off
+    for point in side:
+        point_bear_off = (num == point or point == max(side)) and can_bear_off
+        dest = point - num
+        opp_on_dest = opp.get(25 - dest, 0)
+        if opp_on_dest <= 1 and (dest > 0 or point_bear_off):
+            f_side, f_opp = side.copy(), opp.copy()
+            if opp_on_dest == 1:
+                f_opp[25] = f_opp.get(25, 0) + f_opp.pop(25 - dest)
+
+            dest = dest if dest >= 0 else 0
+            f_side[point] -= 1
+            if f_side[point] == 0:
+                f_side.pop(point)
+            f_side[dest] = f_side.get(dest, 0) + 1
+            f_board = {color: f_side, switch_color[color]: f_opp}
+            point_plays = [[(point, num)] + moves for moves
+                           in play_gen(f_board, nums, color)]
+            plays.extend(point_plays)
+
+    return plays
+
+
+def usage(play):
+    return sum([num for point, num in play])
+
+
+def sort_play(play):
+    return tuple(sorted(play, key=lambda x: x[0], reverse=True))
+
+
+def check_plays(all_plays):
+    usage_list = [(play, usage(play)) for play in all_plays]
+    max_usage = max([play_usage for play, play_usage in usage_list])
+    valid_plays = {sort_play(play) for play, play_usage in usage_list
+                   if play_usage == max_usage}
+    return list(valid_plays)
+
+
+def state_from_play(board, play, color):
+    if len(play) == 0:
+        return board
+
+    point, num = play[0]
+    play = play[1:]
+    side, opp = board[color].copy(), board[switch_color[color]].copy()
+
+    side[point] -= 1
+    if side[point] == 0:
+        side.pop(point)
+
+    dest = point - num
+    if dest <= 0:
+        side[0] = side.get(0, 0) + 1
+    else:
+        side[dest] = side.get(dest, 0) + 1
+        if opp.get(25 - dest, 0) == 1:
+            opp[25] = opp.get(25, 0) + opp.pop(25 - dest)
+
+    f_board = {color: side, switch_color[color]: opp}
+    return state_from_play(f_board, play, color)
 
 
 def end(board):
@@ -175,47 +187,6 @@ def end(board):
             return [0]*3 + seq
 
 
-def pip(side):
-    return sum([point*num for point, num in side.items()])
-
-
-def check_pt_path_moves(pt_p_moves, color, board):
-    side, opp = board[color], board[switch_color[color]]
-
-    pip_l = [(p_paths, pip(move[color])) for p_paths, move in pt_p_moves]
-    try:
-        min_pip = min([pip_ct for p_paths, pip_ct in pip_l])
-    except ValueError:
-        assert len(pt_p_moves) == 0, 'non-empty list raising ValueError'
-        return []
-
-    ignore = list()
-    for point_paths in [p_paths for p_paths, pip_ct in pip_l
-                        if pip_ct != min_pip]:
-        for point, path in point_paths:
-            if len(path) >= 2:
-                other_pt_paths = [pt_path for pt_path in point_paths
-                                  if pt_path != (point, path)]
-                futures = execute_move(other_pt_paths, side, opp)
-                if futures is None:
-                    continue
-                else:
-                    future_side, future_opp = futures
-                mid = point
-                valid = True
-                for num in path:
-                    mid -= num
-                    if mid < max(future_side):
-                        valid = False
-                        break
-                if not valid:
-                    ignore.append(point_paths)
-                    break
-
-    moves = [move for pt_paths, move in pt_p_moves if pt_paths not in ignore]
-    return moves
-
-
 class Board:
     def __init__(self):
         # dict from {point: num of pieces on point}
@@ -234,88 +205,21 @@ class Board:
 
     def getMoves(self, roll, color):
         if roll[0] == roll[1]:
-            return self.doubleMoves(roll[0], color)
+            rolls = [roll*2]
         else:
-            return self.mixedMoves(roll, color)
+            rolls = [roll, tuple(reversed(roll))]
 
-    def doubleMoves(self, num, color):
-        side = self.getBoard()[color]
-        opp_side = self.getBoard()[switch_color[color]]
-        # n_val is the number of jumps a piece can make
-        # so if a piece is on the 23-point, and the 19-, 15- and 11- points
-        # are able to be moved to, but the 7- is not (assuming double 4s)
-        # point_from_n_val would have {1: [..., 23], 2: [..., 23],
-        #                              3: [..., 23], 4: [...]}
-        # because a piece on the 23-point could move 1, 2, or 3 4s.
-        point_from_n_val = {1: list(), 2: list(), 3: list(), 4: list()}
-        for point in side:
-            if point != 0:
-                for i in range(1, 5):
-                    if opp_side.get(25 - (point - i * num), 0) > 1:
-                        break
-                    else:
-                        point_from_n_val[i].append(point)
+        plays = []
+        board = self.getBoard()
+        for roll in rolls:
+            plays.extend(play_gen(board, roll, color))
+        plays = check_plays(plays)
 
-        moves = list()
-        # a move_type is how the move is split between pieces.
-        # (4,) means that one piece moves 4 times
-        # (3, 1) means one moves 3 times and one moves once
-        # (1, 1, 1, 1) means 4 pieces move once, etc.
-        for move_type in [(4,), (3, 1), (2, 2), (2, 1, 1), (1, 1, 1, 1)]:
-            list_for_product = [point_from_n_val[i] for i in move_type]
-            groups = itertools.product(*list_for_product)
+        after_states = [state_from_play(board, play, color) for play in plays]
+        return after_states
 
-            for group in groups:
-                if test_group(group, side):
-                    point_paths = [(point, (num,) * n_val)
-                                   for point, n_val in zip(group, move_type)]
-                    futures = execute_move(point_paths, side, opp_side)
-                    if futures is not None:
-                        move = {color: futures[0],
-                                switch_color[color]: futures[1]}
-                        moves.append((point_paths, move))
-
-        moves = check_pt_path_moves(moves, color, self.getBoard())
-
-        return dedup_moves(moves)
-
-    def mixedMoves(self, roll, color):
-        side = self.getBoard()[color]
-        opp_side = self.getBoard()[switch_color[color]]
-        points_from_num = dict()
-        for num in roll + (sum(roll),):
-            points_from_num[num] = [point for point in side
-                                    if opp_side.get(25 - (point-num), 0) <= 1]
-
-        groups = itertools.product(points_from_num[roll[0]],
-                                   points_from_num[roll[1]])
-        moves = list()
-        for group in groups:
-            if test_group(group, side):
-                point_paths = list(zip(group, [(die,) for die in roll]))
-                futures = execute_move(point_paths, side, opp_side)
-                if futures is not None:
-                    move = {color: futures[0], switch_color[color]: futures[1]}
-                    moves.append((point_paths, move))
-
-        for point in points_from_num[sum(roll)]:
-            if test_group((point,), side):
-                for die in roll:
-                    if point in points_from_num[die]:
-                        point_paths = [(point, (die, sum(roll) - die))]
-                        futures = execute_move(point_paths, side, opp_side)
-                        if futures is not None:
-                            move = {color: futures[0],
-                                    switch_color[color]: futures[1]}
-                            moves.append((point_paths, move))
-
-        moves = check_pt_path_moves(moves, color, self.getBoard())
-
-        return dedup_moves(moves)
-
-    def end(self, board=None):
-        board = board if board is not None else self.getBoard()
-        return end(board)
+    def end(self):
+        return end(self.getBoard())
 
     def __str__(self):
         return str_from_board(self.getBoard())
