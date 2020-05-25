@@ -128,7 +128,7 @@ def train(n, weights=None):
     for i in range(n):
         steps, end = run_game(ann, lambd=.7, alpha=.1)
         with open('logs/games.csv', 'a') as games:
-            games.write(f"{i}|{steps}|{end}|{datetime.datetime.now()}")
+            games.write(f"{i}|{steps}|{end}|{datetime.datetime.now()}\n")
         with open('logs/weights', 'wb') as weight_file:
             pickle.dump(ann.weights, weight_file)
 
