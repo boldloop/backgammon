@@ -95,7 +95,7 @@ def run_game(weights):
 
 
 if __name__ == '__main__':
-    with open('weights/15k', 'rb') as weight_file:
+    with open('weights/100k', 'rb') as weight_file:
         weights = pickle.load(weight_file)
     run_game(weights=weights)
 
