@@ -106,11 +106,11 @@ def play_gen(board, nums, color):
     plays = [[]]
     can_bear_off = max(side) <= 6
 
-    # all moves where not bearing off
+    # when you're not on the bar
     for point in side:
         point_bear_off = (num == point or point == max(side)) and can_bear_off
         dest = point - num
-        opp_on_dest = opp.get(25 - dest, 0)
+        opp_on_dest = opp.get(25 - dest, 0) if dest > 0 else 0
         if opp_on_dest <= 1 and (dest > 0 or point_bear_off):
             f_side, f_opp = side.copy(), opp.copy()
             if opp_on_dest == 1:
